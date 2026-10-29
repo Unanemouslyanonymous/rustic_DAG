@@ -62,6 +62,7 @@ for i in $(seq 0 $((N - 1))); do
     echo "   node $i: $(count "$OUT/commits-$i.txt") certificates, $(txs "$OUT/commits-$i.txt") transactions committed"
 done
 kill -9 "${pids[3]}"
+wait "${pids[3]}" 2>/dev/null || true
 crashed_at=$(count "$OUT/commits-0.txt")
 ok "node 3 killed"
 
@@ -91,11 +92,13 @@ echo
 echo "   first commits, side by side (index round author digest txs):"
 paste -d'|' <(head -5 "$OUT/commits-0.txt") <(head -5 "$OUT/commits-1.txt") | sed 's/|/   |   /; s/^/   /'
 echo "   ..."
-grep -h "equivocat\|invalid" "$OUT"/node-*.log | head -3 | sed 's/^/   /' || true
+echo
+echo "   final counters of node 0:"
+grep "CoreStats" "$OUT/node-0.log" | tail -1 | sed 's/.*CoreStats { /   /; s/ }$//; s/, /\n   /g'
 
 cleanup
 bold "5/5 Byzantine validator: conflicting headers for the same round"
-cargo test --release --test byzantine -- --nocapture 2>&1 | grep -E "equivocated|test equivocating|test result" | sed 's/^/   /'
+cargo test --release --test byzantine -- --nocapture 2>&1 | grep -E "equivocated at|^byzantine:|test equivocating|test result" | sed -E 's/^.*(WARN)/\1/' | sed 's/^/   /'
 
 bold "done"
 echo "   logs, commit logs and configs are in $OUT/"

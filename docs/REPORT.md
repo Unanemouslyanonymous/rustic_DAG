@@ -309,11 +309,80 @@ Reproduce with `scripts/run_eval.sh`. Raw data is in
 
 ### 8.2 Results
 
-RESULTS_TABLE
+Columns: `down` = nodes that never started, `crash` = nodes killed 10 s
+into the run, `certs` = certificates committed at node 0 over the whole run.
+
+| exp | n | down | crash | batch | offered tx/s | committed tx/s | MB/s | avg ms | p50 ms | p99 ms | certs | consistent |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| load | 4 | 0 | 0 | 500 KB | 10,000 | 10,010 | 5.1 | 524 | 526 | 657 | 853 | yes |
+| load | 4 | 0 | 0 | 500 KB | 50,000 | 50,022 | 25.6 | 386 | 388 | 484 | 1181 | yes |
+| load | 4 | 0 | 0 | 500 KB | 100,000 | 100,045 | 51.2 | 195 | 197 | 245 | 2333 | yes |
+| load | 4 | 0 | 0 | 500 KB | 200,000 | 199,699 | 102.2 | 102 | 100 | 130 | 4637 | yes |
+| load | 4 | 0 | 0 | 500 KB | 300,000 | 299,695 | 153.4 | 71 | 70 | 92 | 6931 | yes |
+| scale | 4 | 0 | 0 | 500 KB | 100,000 | 100,045 | 51.2 | 195 | 197 | 244 | 2333 | yes |
+| scale | 7 | 0 | 0 | 500 KB | 99,400 | 99,166 | 50.8 | 362 | 363 | 450 | 2344 | yes |
+| scale | 10 | 0 | 0 | 500 KB | 100,000 | 74,694 | 38.2 | 3645 | 3344 | 6597 | 669 | yes |
+| faults | 4 | 1 | 0 | 500 KB | 49,800 | 50,413 | 25.8 | 338 | 315 | 685 | 1168 | yes |
+| faults | 7 | 2 | 0 | 500 KB | 50,000 | 50,016 | 25.6 | 558 | 527 | 1015 | 1196 | yes |
+| faults | 10 | 3 | 0 | 500 KB | 49,700 | 50,477 | 25.8 | 725 | 635 | 1798 | 1408 | yes |
+| crash | 4 | 0 | 1 | 500 KB | 50,000 | 42,109 | 21.6 | 422 | 401 | 780 | 1003 | yes |
+| crash | 7 | 0 | 2 | 500 KB | 49,700 | 40,726 | 20.9 | 646 | 623 | 1129 | 1140 | yes |
+| lowlat | 4 | 0 | 0 | 50 KB | 20,000 | 20,010 | 10.2 | 78 | 82 | 95 | 6453 | yes |
+| lowlat | 4 | 0 | 0 | 50 KB | 100,000 | 97,797 | 50.1 | 49 | 45 | 77 | 9177 | yes |
+
+**Every one of the 15 runs ended with all nodes holding mutually
+consistent commit sequences**, including the runs where nodes crashed.
 
 ### 8.3 Discussion
 
-DISCUSSION
+**Throughput and latency (4 nodes).** Committed throughput tracks offered
+load all the way to 300k tx/s (153 MB/s of payload). Latency *falls* as
+load rises, from 524 ms at 10k tx/s to 71 ms at 300k tx/s. This is
+expected given how proposals are triggered. At low load a batch only
+fills when `max_batch_delay` (100 ms) runs out and a header waits up to
+`max_header_delay` (200 ms). At high load, batches fill instantly and
+headers go out as soon as parents are ready, so rounds move at network
+speed. The `lowlat` runs make the same point the other way: with 50 KB
+batches and 10/20 ms timeouts, latency drops to 78 ms at 20k tx/s and 49
+ms at 100k tx/s. The cost is many more, smaller certificates (9,177 vs
+2,333 at 100k tx/s), i.e. more signatures per transaction. Beyond about
+300k tx/s on this machine the shared 4 cores saturate: signature checks,
+bincode and the load generators all compete. An exploratory 600k tx/s run
+collapsed (≈ 90k tx/s committed, multi-second latency), because nothing
+pushes back on clients (§9).
+
+**Committee size.** At 100k tx/s, going from 4 to 7 nodes keeps
+throughput and roughly doubles latency (195 → 362 ms). At 10 nodes the
+host is overloaded: 10 validators and 10 clients on 4 vCPUs, ~100 open
+WebSocket links, and 7 signature checks per certificate. Throughput drops
+to 75k tx/s and latency to seconds. This shows the cost of a single host,
+not the protocol. Each validator's work grows as O(n) per round (n
+headers, n certificates of 2f+1 votes). In a real deployment each node has
+its own machine, while here all n nodes share one.
+
+**Crash faults present from the start.** With the maximum `f` nodes
+down (1/4, 2/7, 3/10) the system still commits the full offered load.
+Latency goes up (338, 558 and 725 ms at 50k tx/s) because every round
+needs *all* live nodes for a quorum, and a leader belonging to a dead node
+cannot be committed directly. Those leader rounds are skipped and their
+history is committed by the next live leader, which adds a wave of delay
+to every fourth or so leader round. p99 grows the most for the same
+reason.
+
+**Crash mid-run.** When 1 of 4 (or 2 of 7) nodes is killed at t = 10 s,
+commits continue with no visible pause. The lower committed throughput
+(42k / 41k tx/s) comes from the benchmark itself: the clients attached to
+the crashed nodes stop too, so offered load drops by 1/4 (or 2/7) for the
+second half of the window. The crashed node's log stays a prefix of the
+survivors' logs.
+
+**Comparison with the paper.** Narwhal-Tusk in the paper reaches ~140k
+tx/s at ~3 s latency on a WAN with 4–10 nodes on dedicated machines
+(512 B transactions, workers on separate machines). Our localhost figures
+are not comparable in absolute terms (no WAN round trips, but one shared
+machine). They do reproduce the qualitative properties: throughput is
+limited by data dissemination rather than consensus, latency is a few
+DAG rounds, and crash faults cost latency but not throughput.
 
 ## 9. Limitations and future work
 

@@ -18,6 +18,10 @@ use rustic_dag::{Certificate, Header, Parameters, Vote};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn equivocating_author_cannot_get_two_certificates() {
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter("rustic_dag::core=warn")
+        .with_test_writer()
+        .try_init();
     let params = Parameters {
         max_header_delay_ms: 50,
         max_batch_delay_ms: 20,
@@ -74,6 +78,14 @@ async fn equivocating_author_cannot_get_two_certificates() {
     }
     let for_a = voters.get(&a.id).map_or(0, |s| s.len());
     let for_b = voters.get(&b.id).map_or(0, |s| s.len());
+    println!(
+        "byzantine: sent header A {} and conflicting header B {} for round 1",
+        a.id, b.id
+    );
+    println!(
+        "byzantine: honest votes received: A={for_a} B={for_b} (quorum is {})",
+        committee.quorum_threshold()
+    );
     // Every honest node voted for exactly one of the two.
     assert_eq!(for_a + for_b, 3, "a={for_a} b={for_b}");
     let both: HashSet<_> = voters.values().flatten().collect();
@@ -100,7 +112,11 @@ async fn equivocating_author_cannot_get_two_certificates() {
         header: loser.clone(),
         votes,
     };
-    assert!(forged.verify(&committee).is_err());
+    let err = forged.verify(&committee).unwrap_err();
+    println!(
+        "byzantine: certificate for {} carrying the votes for {} rejected: {err}",
+        loser.id, winner.id
+    );
 
     // Honest nodes keep making progress and agree with each other.
     let mut c = ClientConnection::connect(&cluster.nodes[0].address)
@@ -124,9 +140,10 @@ async fn equivocating_author_cannot_get_two_certificates() {
     assert!(honest
         .iter()
         .all(|i| cluster.nodes[*i].log.lock().unwrap().transaction_ids.len() >= 10));
-    cluster
+    let agreed = cluster
         .check_consistency(&honest)
         .expect("honest nodes diverged");
+    println!("byzantine: honest nodes keep committing and agree on all {agreed} certificates");
 
     // Whichever round 1 header of ours (if any) got committed, there is only one.
     for i in honest {

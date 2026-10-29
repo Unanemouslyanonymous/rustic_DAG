@@ -43,6 +43,7 @@ tests/
   cluster.rs     end-to-end runs over real sockets (crashes included)
   byzantine.rs   equivocating validator
 scripts/
+  demo.sh            reviewer demo: processes, crash fault, agreement check, Byzantine node
   local_testnet.sh   N separate processes + clients, checks the commit logs agree
   run_eval.sh        full benchmark matrix -> results/
 ```

@@ -1,0 +1,69 @@
+
+== 1/5 build and test
+    Finished `release` profile [optimized + debuginfo] target(s) in 0.05s
+   test result: ok. 28 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+   test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+   test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+   test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+   test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.66s
+   test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.69s
+   test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+   OK all tests pass
+
+== 2/5 start a committee of 4 validators (separate processes)
+   wrote 4 keys, committee.json and parameters.json to demo-output/config
+   node 0  pid 13102  ws://127.0.0.1:9300  key 805ff3eb
+   node 1  pid 13110  ws://127.0.0.1:9301  key 2632aaf4
+   node 2  pid 13118  ws://127.0.0.1:9302  key d3f0e113
+   node 3  pid 13126  ws://127.0.0.1:9303  key d1e42c08
+   4 clients sending 5000 tx/s each (512 B) for 16 s
+
+== 3/5 after 8s: crash node 3 (kill -9)
+   node 0: 272 certificates, 151200 transactions committed
+   node 1: 272 certificates, 151200 transactions committed
+   node 2: 272 certificates, 151200 transactions committed
+   node 3: 272 certificates, 151200 transactions committed
+   OK node 3 killed
+
+== 4/5 after another 8s with only 3 of 4 validators
+   node 0: 513 certificates, 279600 transactions committed
+   node 1: 513 certificates, 279600 transactions committed
+   node 2: 513 certificates, 279600 transactions committed
+   node 3: 272 certificates, 151200 transactions committed
+   OK survivors kept committing (272 -> 513 certificates)
+   OK node 0 log (513 entries) is a prefix of the longest log
+   OK node 1 log (513 entries) is a prefix of the longest log
+   OK node 2 log (513 entries) is a prefix of the longest log
+   OK node 3 log (272 entries) is a prefix of the longest log
+
+   first commits, side by side (index round author digest txs):
+   0 1 2632aaf4 42e4b628d749 0   |   0 1 2632aaf4 42e4b628d749 0
+   1 1 805ff3eb 31d0e4d1b9fc 0   |   1 1 805ff3eb 31d0e4d1b9fc 0
+   2 1 d3f0e113 615a65356503 0   |   2 1 d3f0e113 615a65356503 0
+   3 2 2632aaf4 47a768e12efb 0   |   3 2 2632aaf4 47a768e12efb 0
+   4 2 805ff3eb 09bb83a3f8b2 0   |   4 2 805ff3eb 09bb83a3f8b2 0
+   ...
+
+   final counters of node 0:
+   headers_proposed: 153
+   votes_cast: 530
+   certificates_formed: 153
+   certificates_accepted: 530
+   committed_certificates: 513
+   committed_transactions: 279600
+   equivocations_seen: 0
+   invalid_messages: 0
+
+== 5/5 Byzantine validator: conflicting headers for the same round
+   WARN rustic_dag::core: authority 01f3369f equivocated at round 1: f8d0e85e75bd vs 71922cea3bb6
+   WARN rustic_dag::core: authority 01f3369f equivocated at round 1: 71922cea3bb6 vs f8d0e85e75bd
+   WARN rustic_dag::core: authority 01f3369f equivocated at round 1: 71922cea3bb6 vs f8d0e85e75bd
+   byzantine: sent header A 71922cea3bb6 and conflicting header B f8d0e85e75bd for round 1
+   byzantine: honest votes received: A=2 B=1 (quorum is 3)
+   byzantine: certificate for f8d0e85e75bd carrying the votes for 71922cea3bb6 rejected: invalid signature
+   byzantine: honest nodes keep committing and agree on all 196 certificates
+   test equivocating_author_cannot_get_two_certificates ... ok
+   test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.67s
+
+== done
+   logs, commit logs and configs are in demo-output/

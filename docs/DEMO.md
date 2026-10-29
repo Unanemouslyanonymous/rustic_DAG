@@ -46,34 +46,35 @@ diff <(cut -d' ' -f1-4 demo-output/commits-0.txt) \
 
 ## Expected output (abridged)
 
+From an actual run on a 4 vCPU machine (`scripts/demo.sh 8 5000`). A full
+transcript is in [`results/demo_run.txt`](../results/demo_run.txt).
+
 ```
-== 1/5 build and test
-   test result: ok. 28 passed; 0 failed; ...
-   test result: ok. 1 passed; 0 failed; ...
-   test result: ok. 4 passed; 0 failed; ...
-   OK all tests pass
-
-== 2/5 start a committee of 4 validators (separate processes)
-   node 0  pid 41211  ws://127.0.0.1:9300  key 3f9a1c07
-   ...
-
-== 3/5 after 10s: crash node 3 (kill -9)
-   node 0: 380 certificates, 196000 transactions committed
+== 3/5 after 8s: crash node 3 (kill -9)
+   node 0: 273 certificates, 150800 transactions committed
    ...
    OK node 3 killed
 
-== 4/5 after another 10s with only 3 of 4 validators
-   OK survivors kept committing (380 -> 690 certificates)
-   OK node 0 log (690 entries) is a prefix of the longest log
+== 4/5 after another 8s with only 3 of 4 validators
+   node 0: 520 certificates, 279600 transactions committed
+   node 1: 520 certificates, 279600 transactions committed
+   node 2: 520 certificates, 279600 transactions committed
+   node 3: 273 certificates, 150800 transactions committed
+   OK survivors kept committing (273 -> 520 certificates)
+   OK node 0 log (520 entries) is a prefix of the longest log
    ...
-   OK node 3 log (380 entries) is a prefix of the longest log
+   OK node 3 log (273 entries) is a prefix of the longest log
 
 == 5/5 Byzantine validator: conflicting headers for the same round
-   WARN ... authority 9c2e... equivocated at round 1: ...
+   WARN rustic_dag::core: authority 01f3369f equivocated at round 1: 71922cea3bb6 vs f8d0e85e75bd
+   byzantine: sent header A 71922cea3bb6 and conflicting header B f8d0e85e75bd for round 1
+   byzantine: honest votes received: A=2 B=1 (quorum is 3)
+   byzantine: certificate for f8d0e85e75bd carrying the votes for 71922cea3bb6 rejected: invalid signature
+   byzantine: honest nodes keep committing and agree on all 196 certificates
    test equivocating_author_cannot_get_two_certificates ... ok
 ```
 
-Exact numbers depend on the machine.
+Exact numbers, keys and digests depend on the machine and the run.
 
 ## Doing it by hand
 

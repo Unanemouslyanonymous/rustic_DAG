@@ -5,6 +5,7 @@ edition = "2021"
 description = "A Narwhal/Tusk style DAG consensus engine over a peer-to-peer WebSocket mesh"
 license = "MIT"
 readme = "README.md"
+rust-version = "1.85"
 
 [lib]
 name = "rustic_dag"

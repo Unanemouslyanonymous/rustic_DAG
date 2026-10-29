@@ -64,6 +64,18 @@ integration tests start real committees on localhost: 4 nodes, 4 with one
 node down, 4 with a crash mid-run, 7 with two down, plus a Byzantine node
 that sends conflicting headers.
 
+## Demonstration
+
+```sh
+scripts/demo.sh
+```
+
+This builds and tests everything, runs 4 validators as separate processes
+under load, kills one with `kill -9`, checks that the rest keep committing
+and that all commit logs agree, then runs the Byzantine equivocation
+scenario. See [`docs/DEMO.md`](docs/DEMO.md) for what to expect and how to
+check the logs by hand (a Dockerfile is included too).
+
 ## Running a local testnet
 
 ```sh

@@ -3,11 +3,12 @@
 //!
 //! * `types`     – batches, headers, votes and certificates
 //! * `core`      – the primary: dissemination, voting, certificate
-//!                 aggregation, DAG maintenance and synchronisation
+//!   aggregation, DAG maintenance and synchronisation
 //! * `consensus` – Tusk commit rule over the local DAG
 //! * `network`   – authenticated WebSocket mesh between committee members
 //! * `node`      – glue that runs all of the above
 
+pub mod cluster;
 pub mod config;
 pub mod consensus;
 pub mod core;

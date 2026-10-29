@@ -172,10 +172,9 @@ impl Core {
 
     pub fn on_tick(&mut self) {
         let now = Instant::now();
-        if self
-            .batch_started
-            .is_some_and(|t| now.duration_since(t) >= Duration::from_millis(self.params.max_batch_delay_ms))
-        {
+        if self.batch_started.is_some_and(|t| {
+            now.duration_since(t) >= Duration::from_millis(self.params.max_batch_delay_ms)
+        }) {
             self.seal_batch();
         }
         self.try_propose();
@@ -206,7 +205,8 @@ impl Core {
             PeerMessage::CertificatesRequest(digests) => {
                 for d in digests.iter().take(MAX_REQUEST_ITEMS) {
                     if let Some(c) = self.certificates.get(d).filter(|c| c.round() > 0) {
-                        self.network.send(&from, &PeerMessage::Certificate(c.clone()));
+                        self.network
+                            .send(&from, &PeerMessage::Certificate(c.clone()));
                     }
                 }
             }
@@ -249,7 +249,10 @@ impl Core {
         self.tx_bytes = 0;
         self.batch_started = None;
         let digest = batch.digest();
-        debug!("sealed batch {digest} with {} txs", batch.transactions.len());
+        debug!(
+            "sealed batch {digest} with {} txs",
+            batch.transactions.len()
+        );
         self.network.broadcast(&PeerMessage::Batch(batch.clone()));
         self.batches.insert(digest, batch);
         self.batch_rounds.insert(digest, OWN_UNCERTIFIED);
@@ -281,7 +284,9 @@ impl Core {
     }
 
     fn try_propose(&mut self) {
-        let Some((parent_round, parents)) = self.ready_parents() else { return };
+        let Some((parent_round, parents)) = self.ready_parents() else {
+            return;
+        };
         if parent_round < self.round {
             return;
         }
@@ -296,14 +301,23 @@ impl Core {
         let n = self.payload_queue.len().min(self.params.max_header_batches);
         let payload: Vec<Digest> = self.payload_queue.drain(..n).collect();
         let header = Header::new(&self.keypair, round, payload, parents);
-        debug!("proposing {} at round {round} with {} batches", header.id, header.payload.len());
+        debug!(
+            "proposing {} at round {round} with {} batches",
+            header.id,
+            header.payload.len()
+        );
 
         self.round = round;
         self.last_proposal = Instant::now();
         self.stats.headers_proposed += 1;
         self.in_flight.insert(
             round,
-            InFlight { header: header.clone(), votes: Vec::new(), stake: 0, sent_at: Instant::now() },
+            InFlight {
+                header: header.clone(),
+                votes: Vec::new(),
+                stake: 0,
+                sent_at: Instant::now(),
+            },
         );
         self.network.broadcast(&PeerMessage::Header(header.clone()));
         self.process_header(header, self.name);
@@ -322,7 +336,12 @@ impl Core {
         }
         let (certs, batches) = self.missing(&header);
         if !certs.is_empty() || !batches.is_empty() {
-            debug!("header {} waits for {} certs, {} batches", header.id, certs.len(), batches.len());
+            debug!(
+                "header {} waits for {} certs, {} batches",
+                header.id,
+                certs.len(),
+                batches.len()
+            );
             self.request(&from, &header.author, certs, batches);
             self.pending_headers.insert(header.id, header);
             return;
@@ -339,7 +358,10 @@ impl Core {
         let voted = self.last_voted.entry(header.round).or_default();
         match voted.get(&header.author) {
             Some(d) if *d != header.id => {
-                let e = DagError::Equivocation { author: header.author, round: header.round };
+                let e = DagError::Equivocation {
+                    author: header.author,
+                    round: header.round,
+                };
                 warn!("{e}: {d} vs {}", header.id);
                 self.stats.equivocations_seen += 1;
                 return;
@@ -366,8 +388,12 @@ impl Core {
         if vote.origin != self.name {
             return;
         }
-        let Some(pending) = self.in_flight.get_mut(&vote.round) else { return };
-        if pending.header.id != vote.header_id || pending.votes.iter().any(|(v, _)| *v == vote.voter) {
+        let Some(pending) = self.in_flight.get_mut(&vote.round) else {
+            return;
+        };
+        if pending.header.id != vote.header_id
+            || pending.votes.iter().any(|(v, _)| *v == vote.voter)
+        {
             return;
         }
         if let Err(e) = vote.verify(&self.committee) {
@@ -382,9 +408,14 @@ impl Core {
         }
         let InFlight { header, votes, .. } = self.in_flight.remove(&vote.round).expect("present");
         let certificate = Certificate { header, votes };
-        debug!("formed certificate {} for round {}", certificate.digest(), certificate.round());
+        debug!(
+            "formed certificate {} for round {}",
+            certificate.digest(),
+            certificate.round()
+        );
         self.stats.certificates_formed += 1;
-        self.network.broadcast(&PeerMessage::Certificate(certificate.clone()));
+        self.network
+            .broadcast(&PeerMessage::Certificate(certificate.clone()));
         self.accept_certificate(certificate);
     }
 
@@ -430,7 +461,10 @@ impl Core {
         if let Some(existing) = slot.get(&certificate.origin()) {
             // Impossible with at most f faults: two quorums intersect in an
             // honest node, who votes once per slot.
-            warn!("two certificates for {} at round {round}: {existing} and {digest}", certificate.origin());
+            warn!(
+                "two certificates for {} at round {round}: {existing} and {digest}",
+                certificate.origin()
+            );
             self.stats.equivocations_seen += 1;
             return;
         }
@@ -457,10 +491,18 @@ impl Core {
                 .header
                 .payload
                 .iter()
-                .map(|d| self.batches.get(d).cloned().expect("payload is local before insertion"))
+                .map(|d| {
+                    self.batches
+                        .get(d)
+                        .cloned()
+                        .expect("payload is local before insertion")
+                })
                 .collect();
             self.stats.committed_certificates += 1;
-            self.stats.committed_transactions += batches.iter().map(|b| b.transactions.len() as u64).sum::<u64>();
+            self.stats.committed_transactions += batches
+                .iter()
+                .map(|b| b.transactions.len() as u64)
+                .sum::<u64>();
             let _ = self.output.send(CommittedCertificate {
                 index: self.commit_index,
                 leader_round,
@@ -473,7 +515,12 @@ impl Core {
     }
 
     fn check_parents(&self, header: &Header) -> DagResult<()> {
-        let bad = |reason| Err(DagError::BadParents { digest: header.id, reason });
+        let bad = |reason| {
+            Err(DagError::BadParents {
+                digest: header.id,
+                reason,
+            })
+        };
         let mut authors = HashSet::new();
         let mut stake = 0;
         for p in &header.parents {
@@ -495,24 +542,42 @@ impl Core {
     }
 
     fn missing(&self, header: &Header) -> (Vec<Digest>, Vec<Digest>) {
-        let certs = header.parents.iter().filter(|d| !self.certificates.contains_key(d)).copied().collect();
-        let batches = header.payload.iter().filter(|d| !self.batches.contains_key(d)).copied().collect();
+        let certs = header
+            .parents
+            .iter()
+            .filter(|d| !self.certificates.contains_key(d))
+            .copied()
+            .collect();
+        let batches = header
+            .payload
+            .iter()
+            .filter(|d| !self.batches.contains_key(d))
+            .copied()
+            .collect();
         (certs, batches)
     }
 
     // ----- synchroniser ------------------------------------------------
 
-    fn request(&self, from: &PublicKey, author: &PublicKey, certs: Vec<Digest>, batches: Vec<Digest>) {
+    fn request(
+        &self,
+        from: &PublicKey,
+        author: &PublicKey,
+        certs: Vec<Digest>,
+        batches: Vec<Digest>,
+    ) {
         let mut targets = vec![*from];
         if author != from {
             targets.push(*author);
         }
         for t in targets.iter().filter(|t| **t != self.name) {
             if !certs.is_empty() {
-                self.network.send(t, &PeerMessage::CertificatesRequest(certs.clone()));
+                self.network
+                    .send(t, &PeerMessage::CertificatesRequest(certs.clone()));
             }
             if !batches.is_empty() {
-                self.network.send(t, &PeerMessage::BatchesRequest(batches.clone()));
+                self.network
+                    .send(t, &PeerMessage::BatchesRequest(batches.clone()));
             }
         }
     }
@@ -546,7 +611,10 @@ impl Core {
     }
 
     fn is_complete(&self, header: &Header) -> bool {
-        header.parents.iter().all(|d| self.certificates.contains_key(d))
+        header
+            .parents
+            .iter()
+            .all(|d| self.certificates.contains_key(d))
             && header.payload.iter().all(|d| self.batches.contains_key(d))
     }
 
@@ -555,7 +623,11 @@ impl Core {
     fn retry_sync(&mut self) {
         let mut certs = BTreeSet::new();
         let mut batches = BTreeSet::new();
-        let headers = self.pending_certificates.values().map(|c| &c.header).chain(self.pending_headers.values());
+        let headers = self
+            .pending_certificates
+            .values()
+            .map(|c| &c.header)
+            .chain(self.pending_headers.values());
         for h in headers {
             let (c, b) = self.missing(h);
             certs.extend(c);
@@ -574,13 +646,17 @@ impl Core {
         for pending in self.in_flight.values_mut().rev().take(3) {
             if pending.sent_at.elapsed() >= retry {
                 pending.sent_at = Instant::now();
-                self.network.broadcast(&PeerMessage::Header(pending.header.clone()));
+                self.network
+                    .broadcast(&PeerMessage::Header(pending.header.clone()));
             }
         }
     }
 
     fn garbage_collect(&mut self) {
-        let gc_round = self.consensus.last_committed_round().saturating_sub(self.params.gc_depth);
+        let gc_round = self
+            .consensus
+            .last_committed_round()
+            .saturating_sub(self.params.gc_depth);
         if gc_round <= self.gc_round {
             return;
         }
@@ -594,7 +670,8 @@ impl Core {
         }
         self.last_voted = self.last_voted.split_off(&(gc_round + 1));
         self.pending_headers.retain(|_, h| h.round > gc_round);
-        self.pending_certificates.retain(|_, c| c.round() > gc_round);
+        self.pending_certificates
+            .retain(|_, c| c.round() > gc_round);
 
         // Our own headers that never got certified: put their batches back
         // in the queue so the transactions are not lost.
@@ -641,9 +718,23 @@ mod tests {
                 outbox.insert(k.name, rx);
             }
             let (out_tx, out_rx) = mpsc::unbounded_channel();
-            let params = Parameters { max_header_delay_ms: 60_000, ..Parameters::default() };
-            let core = Core::new(keys[0].clone(), committee, params, Network::from_channels(senders), out_tx);
-            Harness { core, keys, outbox, _commits: out_rx }
+            let params = Parameters {
+                max_header_delay_ms: 60_000,
+                ..Parameters::default()
+            };
+            let core = Core::new(
+                keys[0].clone(),
+                committee,
+                params,
+                Network::from_channels(senders),
+                out_tx,
+            );
+            Harness {
+                core,
+                keys,
+                outbox,
+                _commits: out_rx,
+            }
         }
 
         fn sent_to(&mut self, i: usize) -> Vec<PeerMessage> {
@@ -662,7 +753,15 @@ mod tests {
     }
 
     fn votes(msgs: &[PeerMessage]) -> Vec<&Vote> {
-        msgs.iter().filter_map(|m| if let PeerMessage::Vote(v) = m { Some(v) } else { None }).collect()
+        msgs.iter()
+            .filter_map(|m| {
+                if let PeerMessage::Vote(v) = m {
+                    Some(v)
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 
     #[test]
@@ -692,19 +791,28 @@ mod tests {
     fn header_with_unknown_parents_is_synced_then_voted() {
         let mut h = Harness::new();
         let genesis = genesis_digests(&h.core.committee);
-        let r1: Vec<_> = h.keys.iter().map(|k| make_certificate(k, &h.keys, 1, genesis.clone())).collect();
+        let r1: Vec<_> = h
+            .keys
+            .iter()
+            .map(|k| make_certificate(k, &h.keys, 1, genesis.clone()))
+            .collect();
         let parents = r1.iter().map(|c| c.digest()).collect();
         let header = Header::new(&h.keys[2], 2, vec![], parents);
 
         h.from(2, PeerMessage::Header(header.clone()));
         let sent = h.sent_to(2);
         assert!(votes(&sent).is_empty());
-        assert!(sent.iter().any(|m| matches!(m, PeerMessage::CertificatesRequest(d) if d.len() == 4)));
+        assert!(sent
+            .iter()
+            .any(|m| matches!(m, PeerMessage::CertificatesRequest(d) if d.len() == 4)));
 
         for c in &r1 {
             h.from(2, PeerMessage::Certificate(c.clone()));
         }
-        let v = votes(&h.sent_to(2)).into_iter().cloned().collect::<Vec<_>>();
+        let v = votes(&h.sent_to(2))
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
         assert_eq!(v.len(), 1);
         assert_eq!(v[0].header_id, header.id);
     }
@@ -712,12 +820,23 @@ mod tests {
     #[test]
     fn header_with_missing_payload_waits_for_batch() {
         let mut h = Harness::new();
-        let batch = Batch { author: h.keys[1].name, nonce: 0, transactions: vec![vec![1, 2, 3]] };
-        let header = Header::new(&h.keys[1], 1, vec![batch.digest()], genesis_digests(&h.core.committee));
+        let batch = Batch {
+            author: h.keys[1].name,
+            nonce: 0,
+            transactions: vec![vec![1, 2, 3]],
+        };
+        let header = Header::new(
+            &h.keys[1],
+            1,
+            vec![batch.digest()],
+            genesis_digests(&h.core.committee),
+        );
         h.from(1, PeerMessage::Header(header));
         let sent = h.sent_to(1);
         assert!(votes(&sent).is_empty());
-        assert!(sent.iter().any(|m| matches!(m, PeerMessage::BatchesRequest(_))));
+        assert!(sent
+            .iter()
+            .any(|m| matches!(m, PeerMessage::BatchesRequest(_))));
         h.from(1, PeerMessage::Batch(batch));
         assert_eq!(votes(&h.sent_to(1)).len(), 1);
     }
@@ -756,7 +875,13 @@ mod tests {
         assert!(matches!(sent[0], PeerMessage::Batch(_)));
         let header = sent
             .iter()
-            .find_map(|m| if let PeerMessage::Header(x) = m { Some(x.clone()) } else { None })
+            .find_map(|m| {
+                if let PeerMessage::Header(x) = m {
+                    Some(x.clone())
+                } else {
+                    None
+                }
+            })
             .expect("header proposed");
         assert_eq!(header.round, 1);
         assert_eq!(header.payload.len(), 1);
@@ -766,17 +891,27 @@ mod tests {
             h.from(i, PeerMessage::Vote(v));
         }
         assert_eq!(h.core.stats.certificates_formed, 1);
-        assert!(h.sent_to(1).iter().any(|m| matches!(m, PeerMessage::Certificate(c) if c.digest() == header.id)));
+        assert!(h
+            .sent_to(1)
+            .iter()
+            .any(|m| matches!(m, PeerMessage::Certificate(c) if c.digest() == header.id)));
     }
 
     #[test]
     fn forged_vote_is_ignored() {
         let mut h = Harness::new();
-        h.core.handle(Inbound::Client(vec![vec![1u8; h.core.params.batch_size]]));
+        h.core
+            .handle(Inbound::Client(vec![vec![1u8; h.core.params.batch_size]]));
         let header = h
             .sent_to(1)
             .into_iter()
-            .find_map(|m| if let PeerMessage::Header(x) = m { Some(x) } else { None })
+            .find_map(|m| {
+                if let PeerMessage::Header(x) = m {
+                    Some(x)
+                } else {
+                    None
+                }
+            })
             .unwrap();
         let mut v = Vote::new(&header, &h.keys[1]);
         v.voter = h.keys[2].name;

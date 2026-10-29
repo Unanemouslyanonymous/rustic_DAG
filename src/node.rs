@@ -36,7 +36,11 @@ impl NodeHandle {
     }
 }
 
-pub async fn spawn(keypair: KeyPair, committee: Committee, params: Parameters) -> anyhow::Result<NodeHandle> {
+pub async fn spawn(
+    keypair: KeyPair,
+    committee: Committee,
+    params: Parameters,
+) -> anyhow::Result<NodeHandle> {
     let name = keypair.name;
     let address = committee
         .address(&name)
@@ -50,9 +54,18 @@ pub async fn spawn(keypair: KeyPair, committee: Committee, params: Parameters) -
     let (commit_tx, commit_rx) = mpsc::unbounded_channel();
 
     let network = spawn_dialers(&keypair, &committee, params.channel_capacity, &mut tasks);
-    tasks.spawn(listen(listener, name, Arc::new(committee.clone()), inbound_tx));
+    tasks.spawn(listen(
+        listener,
+        name,
+        Arc::new(committee.clone()),
+        inbound_tx,
+    ));
     let core = Core::new(keypair, committee, params, network, commit_tx);
     tasks.spawn(core.run(inbound_rx));
 
-    Ok(NodeHandle { name, commits: commit_rx, tasks })
+    Ok(NodeHandle {
+        name,
+        commits: commit_rx,
+        tasks,
+    })
 }

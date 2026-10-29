@@ -150,7 +150,10 @@ pub struct KeyFile {
 
 impl KeyFile {
     pub fn from_keypair(kp: &KeyPair) -> Self {
-        KeyFile { name: kp.name, secret: hex::encode(kp.secret_bytes()) }
+        KeyFile {
+            name: kp.name,
+            secret: hex::encode(kp.secret_bytes()),
+        }
     }
 
     pub fn into_keypair(self) -> anyhow::Result<KeyPair> {
@@ -158,7 +161,10 @@ impl KeyFile {
             .try_into()
             .map_err(|_| anyhow::anyhow!("secret key must be 32 bytes"))?;
         let kp = KeyPair::from_secret(bytes);
-        anyhow::ensure!(kp.name == self.name, "secret key does not match the public key");
+        anyhow::ensure!(
+            kp.name == self.name,
+            "secret key does not match the public key"
+        );
         Ok(kp)
     }
 
@@ -185,7 +191,10 @@ pub fn local_committee<R: RngCore + CryptoRng>(
         .iter()
         .enumerate()
         .map(|(i, k)| {
-            let a = Authority { stake: 1, address: format!("{host}:{}", base_port + i as u16) };
+            let a = Authority {
+                stake: 1,
+                address: format!("{host}:{}", base_port + i as u16),
+            };
             (k.name, a)
         })
         .collect();

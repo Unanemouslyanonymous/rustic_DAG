@@ -26,7 +26,10 @@ pub enum DagError {
     NoQuorum(Digest),
 
     #[error("header {digest} has invalid parents: {reason}")]
-    BadParents { digest: Digest, reason: &'static str },
+    BadParents {
+        digest: Digest,
+        reason: &'static str,
+    },
 
     #[error("authority {author} equivocated at round {round}")]
     Equivocation { author: PublicKey, round: Round },

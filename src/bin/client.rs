@@ -50,6 +50,9 @@ async fn main() -> anyhow::Result<()> {
         conn.submit(txs).await?;
         sent += per_burst;
     }
-    println!("sent {sent} transactions in {:.1}s", start.elapsed().as_secs_f64());
+    println!(
+        "sent {sent} transactions in {:.1}s",
+        start.elapsed().as_secs_f64()
+    );
     Ok(())
 }

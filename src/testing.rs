@@ -10,7 +10,12 @@ use crate::types::{Certificate, Header, Round, Vote};
 
 /// A deterministic committee of `n` nodes listening on 127.0.0.1:0.
 pub fn committee_with_keys(n: usize) -> (Vec<KeyPair>, Committee) {
-    local_committee(&mut StdRng::seed_from_u64(n as u64 * 7919), n, "127.0.0.1", 0)
+    local_committee(
+        &mut StdRng::seed_from_u64(n as u64 * 7919),
+        n,
+        "127.0.0.1",
+        0,
+    )
 }
 
 /// A fully signed certificate for `author` at `round` with the given parents,
@@ -57,5 +62,8 @@ pub fn make_rounds(
 }
 
 pub fn genesis_digests(committee: &Committee) -> BTreeSet<Digest> {
-    Certificate::genesis(committee).iter().map(|c| c.digest()).collect()
+    Certificate::genesis(committee)
+        .iter()
+        .map(|c| c.digest())
+        .collect()
 }

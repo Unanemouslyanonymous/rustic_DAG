@@ -54,7 +54,11 @@ impl Hello {
 
     pub fn new(keypair: &KeyPair, challenge: &Challenge) -> Self {
         let msg = Self::signed_bytes(&keypair.name, &challenge.server, &challenge.nonce);
-        Hello { from: keypair.name, to: challenge.server, signature: keypair.sign(DOMAIN_HELLO, &msg) }
+        Hello {
+            from: keypair.name,
+            to: challenge.server,
+            signature: keypair.sign(DOMAIN_HELLO, &msg),
+        }
     }
 
     pub fn verify(&self, challenge: &Challenge) -> DagResult<()> {
@@ -70,7 +74,9 @@ pub enum ClientMessage {
 }
 
 pub fn encode<T: Serialize>(msg: &T) -> bytes::Bytes {
-    bincode::serialize(msg).expect("in-memory serialisation cannot fail").into()
+    bincode::serialize(msg)
+        .expect("in-memory serialisation cannot fail")
+        .into()
 }
 
 pub fn decode<'a, T: Deserialize<'a>>(bytes: &'a [u8]) -> DagResult<T> {
@@ -92,11 +98,17 @@ mod tests {
     #[test]
     fn hello_binds_server_and_nonce() {
         let (keys, _) = committee_with_keys(2);
-        let ch = Challenge { server: keys[1].name, nonce: [7; 32] };
+        let ch = Challenge {
+            server: keys[1].name,
+            nonce: [7; 32],
+        };
         let hello = Hello::new(&keys[0], &ch);
         assert!(hello.verify(&ch).is_ok());
 
-        let replay = Challenge { server: keys[1].name, nonce: [8; 32] };
+        let replay = Challenge {
+            server: keys[1].name,
+            nonce: [8; 32],
+        };
         assert!(hello.verify(&replay).is_err());
     }
 

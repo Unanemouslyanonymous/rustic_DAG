@@ -55,7 +55,14 @@ impl Header {
     ) -> Self {
         let id = Self::compute_id(&keypair.name, round, &payload, &parents);
         let signature = keypair.sign(DOMAIN_HEADER, id.as_bytes());
-        Header { author: keypair.name, round, payload, parents, id, signature }
+        Header {
+            author: keypair.name,
+            round,
+            payload,
+            parents,
+            id,
+            signature,
+        }
     }
 
     fn compute_id(
@@ -64,7 +71,8 @@ impl Header {
         payload: &[Digest],
         parents: &BTreeSet<Digest>,
     ) -> Digest {
-        let bytes = bincode::serialize(&(author, round, payload, parents)).expect("header serialises");
+        let bytes =
+            bincode::serialize(&(author, round, payload, parents)).expect("header serialises");
         Digest::of(&bytes)
     }
 
@@ -79,13 +87,17 @@ impl Header {
         }
         if self.round == 0 {
             // Only genesis lives at round zero and it is never sent around.
-            return Err(DagError::BadParents { digest: self.id, reason: "round 0 header" });
+            return Err(DagError::BadParents {
+                digest: self.id,
+                reason: "round 0 header",
+            });
         }
         let distinct: HashSet<_> = self.payload.iter().collect();
         if distinct.len() != self.payload.len() {
             return Err(DagError::BadDigest(self.id));
         }
-        self.signature.verify(DOMAIN_HEADER, self.id.as_bytes(), &self.author)
+        self.signature
+            .verify(DOMAIN_HEADER, self.id.as_bytes(), &self.author)
     }
 }
 
@@ -115,7 +127,8 @@ impl Vote {
         if !committee.contains(&self.voter) {
             return Err(DagError::UnknownAuthority(self.voter));
         }
-        self.signature.verify(DOMAIN_VOTE, self.header_id.as_bytes(), &self.voter)
+        self.signature
+            .verify(DOMAIN_VOTE, self.header_id.as_bytes(), &self.voter)
     }
 }
 
@@ -208,7 +221,10 @@ mod tests {
     #[test]
     fn header_roundtrip_and_tamper() {
         let (keys, committee) = committee_with_keys(4);
-        let parents = Certificate::genesis(&committee).iter().map(|c| c.digest()).collect();
+        let parents = Certificate::genesis(&committee)
+            .iter()
+            .map(|c| c.digest())
+            .collect();
         let h = Header::new(&keys[0], 1, vec![Digest::of(b"b")], parents);
         assert!(h.verify(&committee).is_ok());
 
@@ -226,27 +242,49 @@ mod tests {
         let (_, committee) = committee_with_keys(4);
         let (outsiders, _) = committee_with_keys(1);
         let h = Header::new(&outsiders[0], 1, vec![], BTreeSet::new());
-        assert!(matches!(h.verify(&committee), Err(DagError::UnknownAuthority(_))));
+        assert!(matches!(
+            h.verify(&committee),
+            Err(DagError::UnknownAuthority(_))
+        ));
     }
 
     #[test]
     fn certificate_needs_quorum() {
         let (keys, committee) = committee_with_keys(4);
         let h = Header::new(&keys[0], 1, vec![], BTreeSet::new());
-        let votes: Vec<_> = keys.iter().map(|k| Vote::new(&h, k)).map(|v| (v.voter, v.signature)).collect();
+        let votes: Vec<_> = keys
+            .iter()
+            .map(|k| Vote::new(&h, k))
+            .map(|v| (v.voter, v.signature))
+            .collect();
 
-        let ok = Certificate { header: h.clone(), votes: votes[..3].to_vec() };
+        let ok = Certificate {
+            header: h.clone(),
+            votes: votes[..3].to_vec(),
+        };
         assert!(ok.verify(&committee).is_ok());
 
-        let short = Certificate { header: h.clone(), votes: votes[..2].to_vec() };
+        let short = Certificate {
+            header: h.clone(),
+            votes: votes[..2].to_vec(),
+        };
         assert_eq!(short.verify(&committee), Err(DagError::NoQuorum(h.id)));
 
-        let dup = Certificate { header: h.clone(), votes: vec![votes[0], votes[1], votes[1]] };
-        assert_eq!(dup.verify(&committee), Err(DagError::DuplicateVote(keys[1].name)));
+        let dup = Certificate {
+            header: h.clone(),
+            votes: vec![votes[0], votes[1], votes[1]],
+        };
+        assert_eq!(
+            dup.verify(&committee),
+            Err(DagError::DuplicateVote(keys[1].name))
+        );
 
         let mut forged = votes[..3].to_vec();
         forged[2].1 = keys[3].sign(DOMAIN_VOTE, h.id.as_bytes());
-        let bad = Certificate { header: h, votes: forged };
+        let bad = Certificate {
+            header: h,
+            votes: forged,
+        };
         assert_eq!(bad.verify(&committee), Err(DagError::InvalidSignature));
     }
 
@@ -255,7 +293,10 @@ mod tests {
         // The author's header signature must not be usable as a vote.
         let (keys, committee) = committee_with_keys(4);
         let h = Header::new(&keys[0], 1, vec![], BTreeSet::new());
-        let mut votes: Vec<_> = keys[1..3].iter().map(|k| (k.name, Vote::new(&h, k).signature)).collect();
+        let mut votes: Vec<_> = keys[1..3]
+            .iter()
+            .map(|k| (k.name, Vote::new(&h, k).signature))
+            .collect();
         votes.push((keys[0].name, h.signature));
         let c = Certificate { header: h, votes };
         assert_eq!(c.verify(&committee), Err(DagError::InvalidSignature));
@@ -264,8 +305,14 @@ mod tests {
     #[test]
     fn genesis_is_stable() {
         let (_, committee) = committee_with_keys(4);
-        let a: Vec<_> = Certificate::genesis(&committee).iter().map(|c| c.digest()).collect();
-        let b: Vec<_> = Certificate::genesis(&committee).iter().map(|c| c.digest()).collect();
+        let a: Vec<_> = Certificate::genesis(&committee)
+            .iter()
+            .map(|c| c.digest())
+            .collect();
+        let b: Vec<_> = Certificate::genesis(&committee)
+            .iter()
+            .map(|c| c.digest())
+            .collect();
         assert_eq!(a, b);
         assert_eq!(a.iter().collect::<HashSet<_>>().len(), 4);
     }

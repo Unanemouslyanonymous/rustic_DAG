@@ -40,7 +40,13 @@ impl Consensus {
             .map(|c| (c.origin(), c))
             .collect();
         dag.insert(0, genesis);
-        Consensus { committee, gc_depth, dag, committed: HashMap::new(), last_committed_round: 0 }
+        Consensus {
+            committee,
+            gc_depth,
+            dag,
+            committed: HashMap::new(),
+            last_committed_round: 0,
+        }
     }
 
     pub fn last_committed_round(&self) -> Round {
@@ -55,11 +61,16 @@ impl Consensus {
         if round + self.gc_depth < self.last_committed_round {
             return Vec::new();
         }
-        self.dag.entry(round).or_default().insert(certificate.origin(), certificate);
+        self.dag
+            .entry(round)
+            .or_default()
+            .insert(certificate.origin(), certificate);
 
         // A certificate at `round` means its parents, a quorum at `round - 1`,
         // are here. The candidate leader is two rounds below that.
-        let Some(r) = round.checked_sub(1) else { return Vec::new() };
+        let Some(r) = round.checked_sub(1) else {
+            return Vec::new();
+        };
         if r % 2 != 0 || r < 4 {
             return Vec::new();
         }
@@ -128,7 +139,9 @@ impl Consensus {
             if r == to.round() {
                 return frontier.contains(&to.digest());
             }
-            let Some(certs) = self.dag.get(&r) else { return false };
+            let Some(certs) = self.dag.get(&r) else {
+                return false;
+            };
             frontier = certs
                 .values()
                 .filter(|c| frontier.contains(&c.digest()))
@@ -190,7 +203,10 @@ mod tests {
     use std::collections::BTreeSet;
 
     fn feed(consensus: &mut Consensus, certs: &[Certificate]) -> Vec<(Round, Certificate)> {
-        certs.iter().flat_map(|c| consensus.process_certificate(c.clone())).collect()
+        certs
+            .iter()
+            .flat_map(|c| consensus.process_certificate(c.clone()))
+            .collect()
     }
 
     #[test]
@@ -240,7 +256,10 @@ mod tests {
         let (certs, _) = make_rounds(&keys, &[0, 1, 2, 3], genesis_digests(&committee), 1, 30);
 
         let mut a = Consensus::new(committee.clone(), 50);
-        let seq_a: Vec<_> = feed(&mut a, &certs).into_iter().map(|(_, c)| c.digest()).collect();
+        let seq_a: Vec<_> = feed(&mut a, &certs)
+            .into_iter()
+            .map(|(_, c)| c.digest())
+            .collect();
 
         // Shuffle within each round: any order that respects causality is a
         // legitimate delivery order.
@@ -253,7 +272,10 @@ mod tests {
                 shuffled.extend(chunk);
             }
             let mut b = Consensus::new(committee.clone(), 50);
-            let seq_b: Vec<_> = feed(&mut b, &shuffled).into_iter().map(|(_, c)| c.digest()).collect();
+            let seq_b: Vec<_> = feed(&mut b, &shuffled)
+                .into_iter()
+                .map(|(_, c)| c.digest())
+                .collect();
             let n = seq_a.len().min(seq_b.len());
             assert!(n > 0);
             assert_eq!(seq_a[..n], seq_b[..n]);
@@ -270,13 +292,21 @@ mod tests {
         let l2 = idx(committee.leader(2));
 
         let (mut certs, r1) = make_rounds(&keys, &[0, 1, 2, 3], genesis_digests(&committee), 1, 2);
-        let leader2 = certs.iter().find(|c| c.round() == 2 && c.origin() == keys[l2].name).unwrap().digest();
+        let leader2 = certs
+            .iter()
+            .find(|c| c.round() == 2 && c.origin() == keys[l2].name)
+            .unwrap()
+            .digest();
 
         // Round 3: only one certificate (the leader's own) references leader 2.
         let mut r3 = BTreeSet::new();
         let others: Vec<Digest> = r1.iter().copied().filter(|d| *d != leader2).collect();
         for (i, k) in keys.iter().enumerate() {
-            let parents: BTreeSet<_> = if i == l2 { r1.clone() } else { others.iter().copied().collect() };
+            let parents: BTreeSet<_> = if i == l2 {
+                r1.clone()
+            } else {
+                others.iter().copied().collect()
+            };
             let c = make_certificate(k, &keys, 3, parents);
             r3.insert(c.digest());
             certs.push(c);
@@ -299,7 +329,10 @@ mod tests {
         // reachable from leader 4 through the leader's own round 3 cert.
         assert_eq!(leader_rounds, vec![2, 4]);
         let pos = out.iter().position(|c| c.digest() == leader2).unwrap();
-        let pos4 = out.iter().position(|c| c.round() == 4 && c.origin() == committee.leader(4)).unwrap();
+        let pos4 = out
+            .iter()
+            .position(|c| c.round() == 4 && c.origin() == committee.leader(4))
+            .unwrap();
         assert!(pos < pos4);
     }
 
@@ -309,7 +342,11 @@ mod tests {
         let idx = |name| keys.iter().position(|k| k.name == name).unwrap();
         let l2 = idx(committee.leader(2));
         let (mut certs, r1) = make_rounds(&keys, &[0, 1, 2, 3], genesis_digests(&committee), 1, 2);
-        let leader2 = certs.iter().find(|c| c.round() == 2 && c.origin() == keys[l2].name).unwrap().digest();
+        let leader2 = certs
+            .iter()
+            .find(|c| c.round() == 2 && c.origin() == keys[l2].name)
+            .unwrap()
+            .digest();
 
         // Nobody references leader 2, not even its author.
         let others: BTreeSet<Digest> = r1.iter().copied().filter(|d| *d != leader2).collect();

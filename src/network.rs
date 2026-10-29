@@ -29,6 +29,7 @@ use crate::types::Transaction;
 
 /// What the network layer hands to the core.
 #[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
 pub enum Inbound {
     Peer(PublicKey, PeerMessage),
     Client(Vec<Transaction>),
@@ -43,7 +44,9 @@ pub struct Network {
 
 impl Network {
     pub fn from_channels(peers: HashMap<PublicKey, mpsc::Sender<Bytes>>) -> Self {
-        Network { peers: Arc::new(peers) }
+        Network {
+            peers: Arc::new(peers),
+        }
     }
 
     pub fn send(&self, to: &PublicKey, msg: &PeerMessage) {
@@ -122,7 +125,10 @@ async fn dialer(keypair: KeyPair, peer: PublicKey, address: String, mut rx: mpsc
                             debug!("lost connection to {peer}");
                         }
                     }
-                    Some(ch) => warn!("{address} claims to be {} but we expected {peer}", ch.server),
+                    Some(ch) => warn!(
+                        "{address} claims to be {} but we expected {peer}",
+                        ch.server
+                    ),
                     None => debug!("no challenge from {address}"),
                 }
             }
@@ -182,7 +188,11 @@ async fn serve(
     };
     match decode::<Handshake>(&first)? {
         Handshake::Peer(hello) => {
-            anyhow::ensure!(committee.contains(&hello.from), "{} is not in the committee", hello.from);
+            anyhow::ensure!(
+                committee.contains(&hello.from),
+                "{} is not in the committee",
+                hello.from
+            );
             anyhow::ensure!(hello.from != me && hello.to == me, "misaddressed hello");
             hello.verify(&challenge)?;
             info!("peer {} connected", hello.from);
@@ -240,14 +250,17 @@ impl ClientConnection {
             }
             _ => anyhow::bail!("{address} did not send a challenge"),
         }
-        sink.send(Message::Binary(encode(&Handshake::Client))).await?;
+        sink.send(Message::Binary(encode(&Handshake::Client)))
+            .await?;
         // Drain whatever the server sends so control frames get handled.
         tokio::spawn(async move { while let Some(Ok(_)) = stream.next().await {} });
         Ok(ClientConnection { sink })
     }
 
     pub async fn submit(&mut self, txs: Vec<Transaction>) -> anyhow::Result<()> {
-        self.sink.send(Message::Binary(encode(&ClientMessage::Transactions(txs)))).await?;
+        self.sink
+            .send(Message::Binary(encode(&ClientMessage::Transactions(txs))))
+            .await?;
         Ok(())
     }
 }

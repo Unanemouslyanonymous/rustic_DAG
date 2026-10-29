@@ -51,17 +51,33 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     match Cli::parse().cmd {
-        Cmd::Generate { nodes, host, base_port, dir } => {
+        Cmd::Generate {
+            nodes,
+            host,
+            base_port,
+            dir,
+        } => {
             std::fs::create_dir_all(&dir)?;
             let (keys, committee) = local_committee(&mut OsRng, nodes, &host, base_port);
             for (i, k) in keys.iter().enumerate() {
                 KeyFile::save(k, dir.join(format!("node-{i}.json")))?;
             }
             committee.save(dir.join("committee.json"))?;
-            std::fs::write(dir.join("parameters.json"), serde_json::to_vec_pretty(&Parameters::default())?)?;
-            println!("wrote {nodes} keys, committee.json and parameters.json to {}", dir.display());
+            std::fs::write(
+                dir.join("parameters.json"),
+                serde_json::to_vec_pretty(&Parameters::default())?,
+            )?;
+            println!(
+                "wrote {nodes} keys, committee.json and parameters.json to {}",
+                dir.display()
+            );
         }
-        Cmd::Run { key, committee, parameters, commit_log } => {
+        Cmd::Run {
+            key,
+            committee,
+            parameters,
+            commit_log,
+        } => {
             let keypair = KeyFile::load(key)?;
             let committee = Committee::load(committee)?;
             let params = match parameters {
@@ -70,7 +86,12 @@ async fn main() -> anyhow::Result<()> {
             };
             let mut handle = node::spawn(keypair, committee, params).await?;
             let mut log = match commit_log {
-                Some(p) => Some(std::fs::OpenOptions::new().create(true).append(true).open(p)?),
+                Some(p) => Some(
+                    std::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open(p)?,
+                ),
                 None => None,
             };
             loop {

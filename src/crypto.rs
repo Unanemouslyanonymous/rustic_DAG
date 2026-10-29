@@ -184,7 +184,11 @@ impl Signature {
     /// Verifies many signatures over the same message at once. Considerably
     /// faster than one by one, which matters since every certificate carries
     /// a quorum of them.
-    pub fn verify_batch(domain: &[u8], msg: &[u8], votes: &[(PublicKey, Signature)]) -> DagResult<()> {
+    pub fn verify_batch(
+        domain: &[u8],
+        msg: &[u8],
+        votes: &[(PublicKey, Signature)],
+    ) -> DagResult<()> {
         let m = tagged(domain, msg);
         let messages: Vec<&[u8]> = votes.iter().map(|_| m.as_slice()).collect();
         let signatures: Vec<ed25519_dalek::Signature> = votes
@@ -272,7 +276,10 @@ mod tests {
     fn batch_verification() {
         let mut rng = StdRng::seed_from_u64(3);
         let keys: Vec<_> = (0..5).map(|_| KeyPair::generate(&mut rng)).collect();
-        let mut votes: Vec<_> = keys.iter().map(|k| (k.name, k.sign(DOMAIN_VOTE, b"m"))).collect();
+        let mut votes: Vec<_> = keys
+            .iter()
+            .map(|k| (k.name, k.sign(DOMAIN_VOTE, b"m")))
+            .collect();
         assert!(Signature::verify_batch(DOMAIN_VOTE, b"m", &votes).is_ok());
         votes[2].1 = keys[2].sign(DOMAIN_VOTE, b"other");
         assert!(Signature::verify_batch(DOMAIN_VOTE, b"m", &votes).is_err());

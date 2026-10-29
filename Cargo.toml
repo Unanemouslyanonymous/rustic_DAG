@@ -1,0 +1,44 @@
+[package]
+name = "rustic-dag"
+version = "0.1.0"
+edition = "2021"
+description = "A Narwhal/Tusk style DAG consensus engine over a peer-to-peer WebSocket mesh"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+
+[lib]
+name = "rustic_dag"
+path = "src/lib.rs"
+
+[[bin]]
+name = "rdag-node"
+path = "src/bin/node.rs"
+
+[[bin]]
+name = "rdag-client"
+path = "src/bin/client.rs"
+
+[[bin]]
+name = "rdag-bench"
+path = "src/bin/bench.rs"
+
+[dependencies]
+anyhow = "1.0"
+bincode = "1.3"
+blake3 = "1.8"
+bytes = "1"
+clap = { version = "4.5", features = ["derive"] }
+ed25519-dalek = { version = "2", features = ["rand_core", "batch"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+hex = "0.4"
+rand = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2"
+tokio = { version = "1", features = ["full"] }
+tokio-tungstenite = "0.30"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[profile.release]
+debug = 1

@@ -3,7 +3,7 @@ name = "rustic-dag"
 version = "0.1.0"
 edition = "2021"
 description = "A Narwhal/Tusk style DAG consensus engine over a peer-to-peer WebSocket mesh"
-license = "MIT OR Apache-2.0"
+license = "MIT"
 readme = "README.md"
 
 [lib]
